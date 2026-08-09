@@ -1,7 +1,11 @@
 // ペコカネ Service Worker
-// キャッシュファースト＋ランタイムキャッシュ戦略。オフラインでもアプリ本体（index.html）を開けるようにする。
-// 更新を配信するときは CACHE_NAME のバージョンを上げてください（例: v1 → v2）。古いキャッシュは activate 時に自動削除されます。
-const CACHE_NAME = "pekokane-cache-v2";
+// HTML本体は「ネットワーク優先（オフライン時のみキャッシュにフォールバック）」、
+// アイコンなど変わらないファイルは「キャッシュ優先」。
+// これにより index.html だけを更新した通常のデプロイでは、CACHE_NAME を上げなくても
+// 次にアプリを開いたタイミングで自動的に最新版が届く（sw.js自体を書き換えた時だけ
+// ブラウザがService Worker本体の更新を検知する一方、HTMLはfetchのたびに毎回ネットワークを
+// 見に行くため、キャッシュの世代管理に依存しない）。
+const CACHE_NAME = "pekokane-cache-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -34,6 +38,24 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   // avoid interfering with the OCR worker's own internal blob:/data: requests
   if (event.request.url.startsWith("blob:") || event.request.url.startsWith("data:")) return;
+
+  const isHtmlPage = event.request.mode === "navigate" || event.request.destination === "document";
+  if (isHtmlPage) {
+    // ネットワーク優先：オンラインなら常に最新のindex.htmlを取りに行き、取れたものをキャッシュに保存しておく。
+    // オフライン時だけ、直前まで使えていたキャッシュ版にフォールバックする。
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
