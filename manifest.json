@@ -1,7 +1,7 @@
 {
   "name": "ペコカネ",
   "short_name": "ペコカネ",
-  "description": "レシートOCR・日別カレンダー・まねきねこキャラクターつきのかんたん収支管理アプリ",
+  "description": "レシート写真の添付・日別カレンダーつきのかんたん収支管理アプリ",
   "id": "/",
   "start_url": "./index.html",
   "scope": "./",
